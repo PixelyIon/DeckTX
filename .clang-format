@@ -1,0 +1,27 @@
+---
+BasedOnStyle: WebKit
+AccessModifierOffset: -2
+AlignEscapedNewlines: Left
+AlignOperands: Align
+AllowShortEnumsOnASingleLine: false
+RemoveBracesLLVM: true
+AllowShortFunctionsOnASingleLine: Empty
+BraceWrapping:
+  AfterFunction: false
+BreakBeforeBraces: Attach
+CompactNamespaces: true
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+Cpp11BracedListStyle: true
+IndentCaseBlocks: true
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+PackConstructorInitializers: Never
+SpaceBeforeCpp11BracedList: false
+SpaceInEmptyBlock: false
+SpacesInContainerLiterals: false
+NamespaceIndentation: Inner
+AlignConsecutiveMacros:
+  Enabled: true
+InsertTrailingCommas: Wrapped
+BinPackArguments: false
+BinPackParameters: false
