@@ -154,11 +154,11 @@ std::vector<SerialPortInfo> ListSerialPorts() {
             }
         }
 
-        ports.emplace_back(SerialPortInfo{
-            devicePath,
-            friendlyName.empty() ? portName : friendlyName,
-            hardwareID,
-        });
+        ports.emplace(it, SerialPortInfo{
+                              devicePath,
+                              friendlyName.empty() ? portName : friendlyName + " (" + portName + ")",
+                              hardwareID,
+                          });
     }
 
 #endif
