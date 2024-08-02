@@ -143,18 +143,14 @@ class ElrsManager {
                     earlyPing = true;
                 }
 
-                if (channelFrame) {
-                    crsfInterface.SendFrame(*channelFrame);
-                    channelFrame.reset();
-                }
-
-                bool sentFrame{};
                 for (crsf::Device& device : devices) {
                     auto frame{device.TryGetTxFrame()};
 
                     if (frame) {
                         crsfInterface.SendFrame(*frame);
-                        sentFrame = true;
+                    } else if (device.address == crsf::Address::FlightController && channelFrame) {
+                        crsfInterface.SendFrame(*channelFrame);
+                        channelFrame.reset();
                     }
                 }
 
