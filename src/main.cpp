@@ -471,6 +471,11 @@ class ElrsManager {
 
                 ImGui::Unindent();
                 ImGui::Separator();
+
+                if (ImGui::Button("Reset Device")) {
+                    crsfInterface.ResetDevice();
+                    wrotePackets = true;
+                }
             }
 
             if (wrotePackets)
