@@ -495,10 +495,8 @@ void SerialPort::SetDTR(bool state) {
 
 #elif SERIAL_LINUX
 
-    int status{state ? TIOCM_DTR : 0};
-    if (ioctl(fd, TIOCMSET, &status) == -1)
+    if (ioctl(fd, state ? TIOCMBIS : TIOCMBIC, TIOCM_DTR) == -1)
         throw Exception("Failed to set DTR: {}", strerror(errno));
-
 #endif
 }
 
@@ -510,8 +508,7 @@ void SerialPort::SetRTS(bool state) {
 
 #elif SERIAL_LINUX
 
-    int status{state ? TIOCM_RTS : 0};
-    if (ioctl(fd, TIOCMSET, &status) == -1)
+    if (ioctl(fd, state ? TIOCMBIS : TIOCMBIC, TIOCM_RTS) == -1)
         throw Exception("Failed to set RTS: {}", strerror(errno));
 
 #endif
