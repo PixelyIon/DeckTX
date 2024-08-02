@@ -344,9 +344,9 @@ class ElrsManager {
                     crsfChannels.set(1, getAxisValue(SDL_GAMEPAD_AXIS_RIGHTY, true));
                     crsfChannels.set(2, getCombinedTriggerValue(SDL_GAMEPAD_AXIS_LEFT_TRIGGER, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER));
                     crsfChannels.set(3, getAxisValue(SDL_GAMEPAD_AXIS_LEFTX));
-                    // CRSF Aux 1 value is ignored for some reason.
-                    crsfChannels.set(5, getButtonToggle(SDL_GAMEPAD_BUTTON_START));
-                    crsfChannels.set(6, getButtonToggle(SDL_GAMEPAD_BUTTON_LEFT_STICK));
+                    crsfChannels.set(4, getButtonToggle(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER));
+                    crsfChannels.set(5, getButtonToggle(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER));
+                    crsfChannels.set(6, getButtonToggle(SDL_GAMEPAD_BUTTON_START));
 
                     constexpr std::array<const char*, 7> channelLabels{"Roll", "Pitch", "Throttle", "Yaw", "Aux 1", "Aux 2", "Aux 3"};
                     for (int i{}; i < channelLabels.size(); i++) {
