@@ -8,22 +8,28 @@
 #include "crsf.h"
 
 namespace crsf {
-bool Interface::IsActive() {
-    return serial.IsOpen();
+bool Interface::IsActive() noexcept {
+    try {
+        return serial.IsOpen();
+    } catch (std::exception& e) {
+        return false;
+    }
 }
 
-void Interface::ResetDevice() { 
-    if (!serial.IsOpen())
-        return;
+void Interface::ResetDevice() noexcept { 
+    try {
+        if (!serial.IsOpen())
+            return;
 
-    serial.SetDTR(false);
-    serial.SetRTS(false);
-    serial.WriteByte(0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    serial.SetDTR(true);
-    serial.SetRTS(true);
-    serial.WriteByte(0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        serial.SetDTR(false);
+        serial.SetRTS(false);
+        serial.WriteByte(0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        serial.SetDTR(true);
+        serial.SetRTS(true);
+        serial.WriteByte(0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    } catch (std::exception& e) {}
 }
 
 void Interface::SendFrame(const FrameV& frame) {

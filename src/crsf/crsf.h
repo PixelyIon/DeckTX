@@ -23,12 +23,12 @@ class Interface {
     /**
       * @return Whether the interface is active, i.e. the serial port is open. This should be checked after exceptions.
      */
-    bool IsActive();
+    bool IsActive() noexcept;
 
     /**
      * @brief Attempts to reset the device by asserting the DTR and RTS lines.
      */
-    void ResetDevice();
+    void ResetDevice() noexcept;
 
     /**
      * @brief Sends a frame over the CRSF interface.
