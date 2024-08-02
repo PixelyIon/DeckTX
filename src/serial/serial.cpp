@@ -29,6 +29,7 @@
 
     #include <sys/ioctl.h>
     #include <sys/select.h>
+    #include <sys/stat.h>
 #else
     #error "Unsupported platform"
 #endif
@@ -313,7 +314,14 @@ bool SerialPort::IsOpen() {
 
 #elif SERIAL_LINUX
 
-    return fcntl(fd, F_GETFD) != -1 || errno != EBADF;
+    struct stat st {};
+    if (fstat(fd, &st) == -1 || st.st_nlink == 0)
+        /* st_nlink is the number of hard links to the file, these are only 0 when the file no longer exists.
+         * This happens when the serial device has been disconnected.
+         */
+        return false;
+
+    return true;
 
 #endif
 }
