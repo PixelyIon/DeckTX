@@ -154,6 +154,17 @@ std::vector<SerialPortInfo> ListSerialPorts() {
             }
         }
 
+        // Order by ttyUSB, ttyACM, ttyS. Since it's far more likely for the target device to be USB.
+        auto it{ports.begin()};
+        bool isUSB{portName.find("ttyUSB") != std::string::npos}, isACM{portName.find("ttyACM") != std::string::npos};
+        for (; it != ports.end(); it++) {
+            bool isUSB2{it->devicePath.find("ttyUSB") != std::string::npos}, isACM2{it->devicePath.find("ttyACM") != std::string::npos};
+            if (isUSB && !isUSB2)
+                break;
+            if (isACM && !isACM2)
+                break;
+        }
+
         ports.emplace(it, SerialPortInfo{
                               devicePath,
                               friendlyName.empty() ? portName : friendlyName + " (" + portName + ")",
