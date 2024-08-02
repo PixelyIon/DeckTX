@@ -37,6 +37,7 @@ class ElrsManager {
     std::optional<crsf::BatterySensorData> batteryData{};
 
     SDL_Joystick* joystick{};
+    SDL_JoystickID joystickId{};
     struct ButtonState {
         bool pressed{}; //!< Whether the button is currently pressed, this is necessary to track releases for toggling.
         bool toggled{}; //!< Turns true when the button is pressed and false when it is pressed again.
@@ -189,32 +190,6 @@ class ElrsManager {
         , rxThread{std::bind_front(&ElrsManager::RxThread, this)}
         , txThread{std::bind_front(&ElrsManager::TxThread, this)} {}
 
-    bool HasJoystick() {
-        if (joystick) {
-            if (SDL_JoystickConnected(joystick))
-                return true;
-            SDL_CloseJoystick(joystick);
-            joystick = nullptr;
-        }
-
-        if (SDL_HasJoystick()) {
-            int joystickCount{};
-            auto joysticks{SDL_GetJoysticks(&joystickCount)};
-            if (joystickCount > 0) {
-                joystick = SDL_OpenJoystick(joysticks[0]);
-                if (joystick != nullptr) {
-                    fmt::print("Opened joystick: {}\n", SDL_GetJoystickName(joystick));
-                    buttonStates.resize(SDL_GetNumJoystickButtons(joystick));
-                    return true;
-                } else {
-                    fmt::print("Failed to open joystick: {}\n", SDL_GetError());
-                }
-            }
-        }
-
-        return false;
-    }
-
     void Draw() {
         std::scoped_lock lock{stateMutex};
 
@@ -259,9 +234,46 @@ class ElrsManager {
                 ImGui::Text("RC Channels:");
                 ImGui::Indent();
 
-                if (HasJoystick()) {
-                    SDL_LockJoysticks();
+                SDL_LockJoysticks();
+                if (joystick && !SDL_JoystickConnected(joystick)) {
+                    SDL_CloseJoystick(joystick);
+                    joystick = nullptr;
+                }
+                
+                if (SDL_HasJoystick()) {
+                    int joystickCount{};
+                    auto joysticks{SDL_GetJoysticks(&joystickCount)};
 
+                    if (joystickId == 0)
+                        joystickId = joysticks[0];
+                    
+                    if (ImGui::BeginCombo("Joystick", SDL_GetJoystickName(joystick))) {
+                        for (int i{}; i < joystickCount; i++) {
+                            SDL_JoystickID id{joysticks[i]};
+                            if (ImGui::Selectable(SDL_GetJoystickNameForID(id), id == joystickId)) {
+                                if (joystickId != id) {
+                                    SDL_CloseJoystick(joystick);
+                                    joystick = nullptr;
+                                    joystickId = id;
+                                }
+                            }
+                        }
+                        ImGui::EndCombo();
+                    }
+
+                    if (!joystick) {
+                        joystick = SDL_OpenJoystick(joystickId);
+                        if (joystick != nullptr) {
+                            fmt::print("Opened joystick: {}\n", SDL_GetJoystickName(joystick));
+                            buttonStates.clear();
+                            buttonStates.resize(SDL_GetNumJoystickButtons(joystick));
+                        } else {
+                            fmt::print("Failed to open joystick: {}\n", SDL_GetError());
+                        }
+                    }
+                }
+
+                if (joystick) {
                     for (int i{}; i < SDL_GetNumJoystickButtons(joystick); i++) {
                         bool pressed{static_cast<bool>(SDL_GetJoystickButton(joystick, i))};
                         ButtonState& buttonState{buttonStates[i]};
@@ -297,7 +309,7 @@ class ElrsManager {
                     }};
 
                     /* getCombinedTriggerValue, combines anegative axis and the positive axis them into a single axis which is:
-                     * * Centered when both are at their minimum. 
+                     * * Centered when both are at their minimum.
                      * * At the maximum value, if the positive axis is at its max.
                      * * At the minimum value, if the negative axis is at its max.
                      */
@@ -369,11 +381,11 @@ class ElrsManager {
                             ImGui::Unindent();
                         }
                     }
-
-                    SDL_UnlockJoysticks();
                 } else {
                     ImGui::Text("No joystick connected");
                 }
+
+                SDL_UnlockJoysticks();
 
                 ImGui::Unindent();
                 ImGui::Separator();
