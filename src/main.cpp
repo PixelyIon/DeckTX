@@ -55,7 +55,7 @@ class ElrsManager {
         SetThreadName("ELRS RX");
         while (!stopToken.stop_requested()) {
             try {
-                std::optional<crsf::FrameV> frameV{crsfInterface.ReceiveFrame(std::chrono::steady_clock::now() + std::chrono::seconds{1})};
+                std::optional<crsf::FrameV> frameV{crsfInterface.ReceiveFrame(std::chrono::steady_clock::now() + std::chrono::milliseconds{100})};
                 // Note: Timeouts are important so that stop tokens are checked frequently.
                 if (!frameV)
                     continue;
