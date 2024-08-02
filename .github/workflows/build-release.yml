@@ -119,6 +119,9 @@ jobs:
       contents: write
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all tags and history
+        filter: tree:0
 
     - name: Download Windows build artifacts
       uses: actions/download-artifact@v4
@@ -139,7 +142,7 @@ jobs:
 
     - name: Determine Next Tag
       run: |
-        latest_tag=$(git tag --sort=-creatordate --contains v | head -n 1); \
+        latest_tag=$(git tag --sort=-creatordate | grep -E '^v[0-9]+$' | head -n 1); \
         if [ -z "$latest_tag" ]; then \
           version=1; \
         else \
@@ -162,7 +165,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: v${{ env.VERSION }}
-        release_name: "Release ${{ env.VERSION }}"
+        release_name: "Release v${{ env.VERSION }}"
         body: |
           Automatic release of DeckTX for ${{ github.sha }}.
         draft: false
