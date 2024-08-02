@@ -194,11 +194,9 @@ struct DeviceInfoFrame : public ExtFrame {
 struct ParameterSettingsEntryFrame : public ExtFrame {
     static constexpr FrameType Type{FrameType::ParameterSettingsEntry};
 
-    static constexpr size_t FieldDataSizeMax{PayloadSizeMax - (HeaderSize + ExtSize + 2)};
-
     u8 fieldIndex;
     u8 chunksRemaining;
-    StaticVector<u8, FieldDataSizeMax> data;
+    StaticVector<u8, PayloadSizeMax> data;
 
     ParameterSettingsEntryFrame(std::span<u8> data)
         : ExtFrame(data)
