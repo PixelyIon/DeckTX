@@ -19,12 +19,16 @@
     #include <fstream>
     #include <regex>
 
-    #include <unistd.h>
+    #include <errno.h>
     #include <fcntl.h>
     #include <termios.h>
+    #include <unistd.h>
+
+    #include <linux/serial.h>
+    #include <linux/tty_flags.h>
+
     #include <sys/ioctl.h>
     #include <sys/select.h>
-    #include <errno.h>
 #else
     #error "Unsupported platform"
 #endif
@@ -210,35 +214,73 @@ SerialPort::SerialPort(std::string devicePath, size_t baudRate) {
 
 #elif SERIAL_LINUX
 
-    fd = open(devicePath.c_str(), O_RDWR | O_NOCTTY | O_NDELAY);
+    fd = open(devicePath.c_str(), O_RDWR | O_NOCTTY);
     if (fd == -1)
         throw Exception("Failed to open serial port ({}): {}", devicePath, strerror(errno));
 
-    struct termios tty {};
-    if (tcgetattr(fd, &tty) != 0)
-        throw Exception("Failed to get serial port state ({}): {}", devicePath, strerror(errno));
+    if (tcflush(fd, TCIOFLUSH) == -1)
+        throw Exception("Failed to flush serial port ({}): {}", devicePath, strerror(errno));
+    if (tcdrain(fd) == -1)
+        throw Exception("Failed to drain serial port ({}): {}", devicePath, strerror(errno));
+    if (tcflow(fd, TCOOFF) == -1)
+        throw Exception("Failed to stop serial port ({}): {}", devicePath, strerror(errno));
 
-    cfsetospeed(&tty, baudRate);
-    cfsetispeed(&tty, baudRate);
-
-    tty.c_cflag &= ~PARENB;
-    tty.c_cflag &= ~CSTOPB;
-    tty.c_cflag &= ~CSIZE;
-    tty.c_cflag |= CS8;
-
-    tty.c_cflag &= ~CRTSCTS;
-    tty.c_cflag |= CREAD | CLOCAL;
-
-    tty.c_iflag &= ~(IXON | IXOFF | IXANY);
-    tty.c_iflag &= ~(ICANON | ECHO | ECHOE | ISIG);
-
-    tty.c_oflag &= ~OPOST;
-
+    struct termios tty {
+        .c_iflag = 0,
+        .c_oflag = 0,
+        .c_cflag = CREAD | CLOCAL | CS8,
+        .c_lflag = 0,
+    };
     tty.c_cc[VMIN] = 0;
-    tty.c_cc[VTIME] = 10;
+    tty.c_cc[VTIME] = 1;
+
+    speed_t linuxBaudRate{[baudRate]() -> speed_t {
+    #define RATE_CHECK(x)    \
+        if (baudRate <= x) { \
+            return B##x;     \
+        }
+        RATE_CHECK(50);
+        RATE_CHECK(75);
+        RATE_CHECK(110);
+        RATE_CHECK(134);
+        RATE_CHECK(150);
+        RATE_CHECK(200);
+        RATE_CHECK(300);
+        RATE_CHECK(600);
+        RATE_CHECK(1200);
+        RATE_CHECK(1800);
+        RATE_CHECK(2400);
+        RATE_CHECK(4800);
+        RATE_CHECK(9600);
+        RATE_CHECK(19200);
+        RATE_CHECK(38400);
+        RATE_CHECK(57600);
+        RATE_CHECK(115200);
+        RATE_CHECK(230400);
+        RATE_CHECK(460800);
+        RATE_CHECK(500000);
+        RATE_CHECK(576000);
+        RATE_CHECK(921600);
+        RATE_CHECK(1000000);
+        RATE_CHECK(1152000);
+        RATE_CHECK(1500000);
+        RATE_CHECK(2000000);
+        RATE_CHECK(2500000);
+        RATE_CHECK(3000000);
+        RATE_CHECK(3500000);
+    #undef RATE_CHECK
+        return B4000000;
+    }()};
+    if (cfsetospeed(&tty, linuxBaudRate) == -1)
+        throw Exception("Failed to set serial port output speed ({}): {}", devicePath, strerror(errno));
+    if (cfsetispeed(&tty, linuxBaudRate) == -1)
+        throw Exception("Failed to set serial port input speed ({}): {}", devicePath, strerror(errno));
 
     if (tcsetattr(fd, TCSANOW, &tty) != 0)
         throw Exception("Failed to set serial port state ({}): {}", devicePath, strerror(errno));
+
+    if (tcflow(fd, TCOON) == -1)
+        throw Exception("Failed to start serial port ({}): {}", devicePath, strerror(errno));
 
 #endif
 }
@@ -251,8 +293,10 @@ SerialPort::~SerialPort() {
 
 #elif SERIAL_LINUX
 
-    if (fd != -1)
+    if (fd != -1) {
+        tcdrain(fd);
         close(fd);
+    }
 
 #endif
 }
