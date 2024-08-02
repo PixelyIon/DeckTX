@@ -395,19 +395,34 @@ std::optional<u8> SerialPort::ReadByte(std::chrono::time_point<std::chrono::stea
     FD_ZERO(&readfds);
     FD_SET(fd, &readfds);
 
-    struct timeval tv {
-        .tv_sec = std::chrono::duration_cast<std::chrono::seconds>(timeout - std::chrono::steady_clock::now()).count(),
-        .tv_usec = std::chrono::duration_cast<std::chrono::microseconds>(timeout - std::chrono::steady_clock::now()).count() % 1000000,
-    };
+    ssize_t bytesRead{};
+    do {
+        if (std::chrono::steady_clock::now() >= timeout)
+            return std::nullopt;
 
-    if (select(fd + 1, &readfds, NULL, NULL, &tv) == -1)
-        throw Exception("Failed to wait for serial port: {}", strerror(errno));
+        constexpr int UsInSecond{1000000};
+        struct timeval tv {
+            .tv_sec = std::chrono::duration_cast<std::chrono::seconds>(timeout - std::chrono::steady_clock::now()).count(),
+            .tv_usec = std::chrono::duration_cast<std::chrono::microseconds>(timeout - std::chrono::steady_clock::now()).count() % UsInSecond,
+        };
 
-    if (!FD_ISSET(fd, &readfds))
-        return std::nullopt;
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(fd, &readfds);
 
-    if (read(fd, &byte, 1) != 1)
-        throw Exception("Failed to read from serial port: {}", strerror(errno));
+        if (select(fd + 1, &readfds, NULL, NULL, &tv) == -1)
+            throw Exception("Failed to wait for serial port: {}", strerror(errno));
+
+        if (!FD_ISSET(fd, &readfds))
+            return std::nullopt;
+
+        bytesRead = read(fd, &byte, 1);
+        if (bytesRead == -1)
+            throw Exception("Failed to read from serial port: {}", strerror(errno));
+    } while (bytesRead == 0);
+
+    if (bytesRead != 1)
+        throw Exception("Failed to read from serial port: expected 1, got {}", bytesRead);
 
 #endif
 
@@ -423,8 +438,12 @@ void SerialPort::Read(std::span<u8> buffer) {
 
 #elif SERIAL_LINUX
 
-    if (read(fd, buffer.data(), buffer.size()) != buffer.size())
-        throw Exception("Failed to read from serial port: {}", strerror(errno));
+    while (buffer.size() > 0) {
+        ssize_t bytesRead{read(fd, buffer.data(), buffer.size())};
+        if (bytesRead == -1)
+            throw Exception("Failed to read from serial port: {}", strerror(errno));
+        buffer = buffer.subspan(bytesRead);
+    }
 
 #endif
 }
@@ -450,8 +469,12 @@ void SerialPort::Write(std::span<u8> buffer) {
 
 #elif SERIAL_LINUX
 
-    if (write(fd, buffer.data(), buffer.size()) != buffer.size())
-        throw Exception("Failed to write to serial port: {}", strerror(errno));
+    while (buffer.size() > 0) {
+        ssize_t bytesWritten{write(fd, buffer.data(), buffer.size())};
+        if (bytesWritten == -1)
+            throw Exception("Failed to write to serial port: {}", strerror(errno));
+        buffer = buffer.subspan(bytesWritten);
+    }
 
 #endif
 }
