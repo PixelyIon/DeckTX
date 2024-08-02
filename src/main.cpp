@@ -36,13 +36,13 @@ class ElrsManager {
     std::optional<crsf::RcChannelsFrame> channelFrame{};
     std::optional<crsf::BatterySensorData> batteryData{};
 
-    SDL_Joystick* joystick{};
+    SDL_Gamepad* gamepad{};
     SDL_JoystickID joystickId{};
     struct ButtonState {
         bool pressed{}; //!< Whether the button is currently pressed, this is necessary to track releases for toggling.
         bool toggled{}; //!< Turns true when the button is pressed and false when it is pressed again.
     };
-    std::vector<ButtonState> buttonStates;
+    std::array<ButtonState, SDL_GAMEPAD_BUTTON_MAX> buttonStates{};
     bool showJoystickData{}; //!< Whether to show the joystick input data.
 
     crsf::Device* FindDevice(crsf::Address address) {
@@ -235,25 +235,25 @@ class ElrsManager {
                 ImGui::Indent();
 
                 SDL_LockJoysticks();
-                if (joystick && !SDL_JoystickConnected(joystick)) {
-                    SDL_CloseJoystick(joystick);
-                    joystick = nullptr;
+                if (gamepad && !SDL_GamepadConnected(gamepad)) {
+                    SDL_CloseGamepad(gamepad);
+                    gamepad = nullptr;
                 }
                 
                 if (SDL_HasJoystick()) {
                     int joystickCount{};
-                    auto joysticks{SDL_GetJoysticks(&joystickCount)};
+                    auto joysticks{SDL_GetGamepads(&joystickCount)};
 
                     if (joystickId == 0)
                         joystickId = joysticks[0];
                     
-                    if (ImGui::BeginCombo("Joystick", SDL_GetJoystickName(joystick))) {
+                    if (ImGui::BeginCombo("Gamepad", SDL_GetGamepadName(gamepad))) {
                         for (int i{}; i < joystickCount; i++) {
                             SDL_JoystickID id{joysticks[i]};
-                            if (ImGui::Selectable(SDL_GetJoystickNameForID(id), id == joystickId)) {
+                            if (ImGui::Selectable(SDL_GetGamepadNameForID(id), id == joystickId)) {
                                 if (joystickId != id) {
-                                    SDL_CloseJoystick(joystick);
-                                    joystick = nullptr;
+                                    SDL_CloseGamepad(gamepad);
+                                    gamepad = nullptr;
                                     joystickId = id;
                                 }
                             }
@@ -261,21 +261,20 @@ class ElrsManager {
                         ImGui::EndCombo();
                     }
 
-                    if (!joystick) {
-                        joystick = SDL_OpenJoystick(joystickId);
-                        if (joystick != nullptr) {
-                            fmt::print("Opened joystick: {}\n", SDL_GetJoystickName(joystick));
-                            buttonStates.clear();
-                            buttonStates.resize(SDL_GetNumJoystickButtons(joystick));
+                    if (!gamepad) {
+                        gamepad = SDL_OpenGamepad(joystickId);
+                        if (gamepad != nullptr) {
+                            fmt::print("Opened gamepad: {}\n", SDL_GetGamepadName(gamepad));
+                            buttonStates = {};
                         } else {
-                            fmt::print("Failed to open joystick: {}\n", SDL_GetError());
+                            fmt::print("Failed to open gamepad: {}\n", SDL_GetError());
                         }
                     }
                 }
 
-                if (joystick) {
-                    for (int i{}; i < SDL_GetNumJoystickButtons(joystick); i++) {
-                        bool pressed{static_cast<bool>(SDL_GetJoystickButton(joystick, i))};
+                if (gamepad) {
+                    for (size_t i{}; i < buttonStates.size(); i++) {
+                        bool pressed{static_cast<bool>(SDL_GetGamepadButton(gamepad, static_cast<SDL_GamepadButton>(i)))};
                         ButtonState& buttonState{buttonStates[i]};
                         if (pressed && !buttonState.pressed) {
                             buttonState.pressed = true;
@@ -286,17 +285,17 @@ class ElrsManager {
                     }
 
                     constexpr u16 CrsfChannelMin{172 + 5}, CrsfChannelMid{992}, CrsfChannelMax{1811 - 5}, CrsfChannelDiff{CrsfChannelMax - CrsfChannelMin};
-                    constexpr u16 JoystickDeadzone{2000};
+                    constexpr u16 StickDeadzone{2000}, TriggerDeadzone{100};
 
-                    auto getAxisValue{[&](int axis, bool invert = false) -> u16 {
-                        i16 inputValue{SDL_GetJoystickAxis(joystick, axis)};
+                    auto getAxisValue{[&](SDL_GamepadAxis axis, bool invert = false) -> u16 {
+                        i16 inputValue{SDL_GetGamepadAxis(gamepad, axis)};
                         if (invert) {
                             if (inputValue == INT16_MIN)
                                 inputValue = INT16_MAX;
                             else
                                 inputValue *= -1;
                         }
-                        if (abs(inputValue) < JoystickDeadzone)
+                        if (abs(inputValue) < StickDeadzone)
                             return CrsfChannelMid;
 
                         // Shift the input value from -32768 to 32767 (signed 16-bit) to 0 to 65535 (unsigned 16-bit)
@@ -308,26 +307,27 @@ class ElrsManager {
                         return static_cast<uint16_t>(crsfValue);
                     }};
 
-                    /* getCombinedTriggerValue, combines anegative axis and the positive axis them into a single axis which is:
+                    /* getCombinedTriggerValue, combines a negative axis and the positive axis them into a single axis which is:
                      * * Centered when both are at their minimum.
                      * * At the maximum value, if the positive axis is at its max.
                      * * At the minimum value, if the negative axis is at its max.
+                     * Note: Both the axes must be triggers, that are in the range of 0 to 32767.
                      */
-                    auto getCombinedTriggerValue{[&](int negativeAxis, int positiveAxis, bool invert = false) -> u16 {
-                        i16 negativeInputValue{SDL_GetJoystickAxis(joystick, negativeAxis)};
-                        if (abs(negativeInputValue) < JoystickDeadzone)
+                    auto getCombinedTriggerValue{[&](SDL_GamepadAxis negativeAxis, SDL_GamepadAxis positiveAxis, bool invert = false) -> u16 {
+                        i16 negativeInputValue{SDL_GetGamepadAxis(gamepad, negativeAxis)};
+                        if (negativeInputValue < TriggerDeadzone)
                             negativeInputValue = 0;
-                        u32 negativeUnsignedValue{static_cast<u32>(negativeInputValue) + (INT16_MAX + 1)};
+                        u32 negativeUnsignedValue{static_cast<u32>(negativeInputValue)};
 
-                        i16 positiveInputValue{SDL_GetJoystickAxis(joystick, positiveAxis)};
-                        if (abs(positiveInputValue) < JoystickDeadzone)
+                        i16 positiveInputValue{SDL_GetGamepadAxis(gamepad, positiveAxis)};
+                        if (positiveInputValue < TriggerDeadzone)
                             positiveInputValue = 0;
-                        u32 positiveUnsignedValue{static_cast<u32>(positiveInputValue) + (INT16_MAX + 1)};
+                        u32 positiveUnsignedValue{static_cast<u32>(positiveInputValue)};
 
-                        // Shift the input value from -32768 to 32767 (signed 16-bit) to 0 to 65535 (unsigned 16-bit)
+                        // Shift the input value from 0 to 32767 (signed 16-bit) to 0 to 65535 (unsigned 16-bit)
                         u32 unsignedValue{INT16_MAX};
-                        unsignedValue += positiveUnsignedValue / 2;
-                        unsignedValue -= negativeUnsignedValue / 2;
+                        unsignedValue += positiveUnsignedValue;
+                        unsignedValue -= negativeUnsignedValue;
 
                         // Scale the shifted value to the CRSF range
                         u32 crsfValue{((unsignedValue * CrsfChannelDiff) / UINT16_MAX) + CrsfChannelMin};
@@ -347,8 +347,9 @@ class ElrsManager {
                     crsfChannels.set(4, getButtonToggle(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER));
                     crsfChannels.set(5, getButtonToggle(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER));
                     crsfChannels.set(6, getButtonToggle(SDL_GAMEPAD_BUTTON_START));
+                    crsfChannels.set(7, getButtonToggle(SDL_GAMEPAD_BUTTON_BACK));
 
-                    constexpr std::array<const char*, 7> channelLabels{"Roll", "Pitch", "Throttle", "Yaw", "Aux 1", "Aux 2", "Aux 3"};
+                    constexpr std::array<const char*, 8> channelLabels{"Roll", "Pitch", "Throttle", "Yaw", "Aux 1", "Aux 2", "Aux 3", "Aux 4"};
                     for (int i{}; i < channelLabels.size(); i++) {
                         float scaledValue{static_cast<float>(crsfChannels.get(i) - CrsfChannelMin) / CrsfChannelDiff};
                         ImGui::ProgressBar(scaledValue, ImVec2(0.0f, 0.0f), channelLabels[i]);
@@ -361,18 +362,18 @@ class ElrsManager {
 
                     ImGui::Checkbox("Show Joystick Input", &showJoystickData);
                     if (showJoystickData) {
-                        ImGui::Text("Name: %s", SDL_GetJoystickName(joystick));
-                        for (int i{}; i < SDL_GetNumJoystickAxes(joystick); i++) {
+                        ImGui::Text("Name: %s", SDL_GetGamepadName(gamepad));
+                        for (int i{}; i < SDL_GAMEPAD_AXIS_MAX; i++) {
                             ImGui::Text("Axis %d:", i);
                             ImGui::Indent();
-                            i16 signedValue{SDL_GetJoystickAxis(joystick, i)};
+                            i16 signedValue{SDL_GetGamepadAxis(gamepad, static_cast<SDL_GamepadAxis>(i))};
                             u32 unsignedValue{static_cast<u32>(i32{signedValue} - (std::numeric_limits<i16>::min)())};
                             float value{static_cast<float>(unsignedValue) / (std::numeric_limits<u16>::max)()};
                             ImGui::ProgressBar(value, ImVec2(-100, 0), fmt::format("Axis {}", i).c_str());
                             ImGui::Unindent();
                         }
 
-                        for (int i{}; i < SDL_GetNumJoystickButtons(joystick); i++) {
+                        for (int i{}; i < buttonStates.size(); i++) {
                             ButtonState& buttonState{buttonStates[i]};
                             ImGui::Text("Button %d:", i);
                             ImGui::Indent();
