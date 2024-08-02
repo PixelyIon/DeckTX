@@ -518,7 +518,7 @@ int main(int argv, char** args) {
 
     /* Main Loop */
     std::optional<SerialPortInfo> selectedPort{};
-    u32 baudRate{1200000};
+    u32 baudRate{921600};
     std::string error{};
     std::optional<ElrsManager> manager;
 
