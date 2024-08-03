@@ -16,7 +16,7 @@ jobs:
         submodules: true
 
     - name: Set up CMake
-      uses: lukka/get-cmake@v3.27.1
+      uses: lukka/get-cmake@v3.30.1
 
     - name: Set environment variables
       run: |
@@ -172,7 +172,7 @@ jobs:
         prerelease: false
 
     - name: Upload Release Asset (Windows)
-      uses: actions/upload-release-asset@v1
+      uses: actions/upload-release-asset@latest
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
