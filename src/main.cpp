@@ -507,7 +507,17 @@ int main(int argv, char** args) {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD) != 0)
         throw Exception("SDL initialization failed: {}", SDL_GetError());
 
-    SDL_Window* window{SDL_CreateWindow("DeckTX", 1280, 720, SDL_WINDOW_VULKAN | SDL_WINDOW_HIGH_PIXEL_DENSITY)};
+    bool fullscreen{};
+    for (int i{}; i < argv; i++) {
+        std::string arg{args[i]};
+        if (arg == "--help" || arg == "-h") {
+            fmt::print("Usage: {} [--fullscreen (-f)]\n", args[0]);
+            return 0;
+        } else if (arg == "--fullscreen" || arg == "-f")
+            fullscreen = true;
+    }
+
+    SDL_Window* window{SDL_CreateWindow("DeckTX", 1280, 720, SDL_WINDOW_VULKAN | SDL_WINDOW_HIGH_PIXEL_DENSITY | (fullscreen ? SDL_WINDOW_FULLSCREEN : 0))};
     if (window == nullptr)
         throw Exception("SDL window creation failed: {}", SDL_GetError());
 
@@ -600,6 +610,12 @@ int main(int argv, char** args) {
 
                 if (!error.empty())
                     ImGui::Text("Error: %s", error.c_str());
+            }
+
+            if (fullscreen) {
+                ImGui::Separator();
+                if (ImGui::Button("Exit"))
+                    running = false;
             }
         }
 
