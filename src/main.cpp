@@ -149,7 +149,7 @@ class ElrsManager {
 
                     if (frame) {
                         crsfInterface.SendFrame(*frame);
-                    } else if (device.address == crsf::Address::FlightController && channelFrame) {
+                    } else if (device.address == crsf::Address::CrsfTransmitter && channelFrame) {
                         crsfInterface.SendFrame(*channelFrame);
                         channelFrame.reset();
                     }
