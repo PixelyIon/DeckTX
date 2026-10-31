@@ -18,7 +18,7 @@ constexpr u8 SyncByte{0xC8};
 constexpr size_t FrameSizeNotCountedBytes{2};
 constexpr size_t PayloadSizeMax{62};
 constexpr size_t FrameTypeSize{1}, FrameCrcSize{1};
-constexpr size_t FrameSizeMax{FrameSizeNotCountedBytes + PayloadSizeMax + FrameCrcSize};
+constexpr size_t FrameSizeMax{FrameSizeNotCountedBytes + PayloadSizeMax};
 
 enum class FrameType : u8 {
     Gps = 0x02,
